@@ -15,6 +15,10 @@ func main() {
 	defer termui.Close()
 
 	r := rich.New()
+	r.X = 1
+	r.Y = 1
+	r.Width = 50
+	r.Height = 5
 
 	// rich can update it's own content (handling input and cursor blinking) so
 	// registering a dirty handler lets us render when it changes.

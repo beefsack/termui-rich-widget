@@ -39,6 +39,7 @@ type lineInfo struct {
 }
 
 type Widget struct {
+	termui.Block
 	WriteFg, WriteBg termui.Attribute
 
 	MultiLine bool
@@ -62,6 +63,7 @@ type Widget struct {
 
 func New() *Widget {
 	return &Widget{
+		Block:         *termui.NewBlock(),
 		MultiLine:     true,
 		dirtyHandlers: []func(){},
 		cursorCancel:  make(chan struct{}),
@@ -79,15 +81,21 @@ func (w Widget) dirty() {
 }
 
 func (w Widget) Buffer() []termui.Point {
-	points := []termui.Point{}
-	col := 0
-	line := 0
+	points := w.Block.Buffer()
+	innerX, innerY, innerWidth, innerHeight := w.InnerBounds()
+	col := innerX
+	line := innerY
+	overflow := false
 	for i, c := range w.contents {
 		p := c.point(col, line)
 		if c.ch == '\n' {
 			p.Ch = 0
 			line++
-			col = 0
+			if line >= innerY+innerHeight {
+				overflow = true
+				break
+			}
+			col = innerX
 		}
 		if w.cursorEnabled && w.cursorBlinkState && w.cursorPos == i {
 			p.Fg ^= termui.AttrReverse
@@ -100,10 +108,18 @@ func (w Widget) Buffer() []termui.Point {
 		if p.Ch != 0 {
 			points = append(points, p)
 			col++
+			if col >= innerX+innerWidth {
+				col = innerX
+				line++
+				if line >= innerY+innerHeight {
+					overflow = true
+					break
+				}
+			}
 		}
 	}
 	// Special case, end of text and blink is on.
-	if w.cursorEnabled && w.cursorBlinkState && w.cursorPos == len(w.contents) {
+	if !overflow && w.cursorEnabled && w.cursorBlinkState && w.cursorPos == len(w.contents) {
 		points = append(points, termui.Point{
 			Ch: ' ',
 			Fg: termui.AttrReverse,
